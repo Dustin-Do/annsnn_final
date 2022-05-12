@@ -753,5 +753,5 @@ for e in range(0, epoch): # 'epoch'=200 as defined in line 35
 # simulate_by_filename('vgg16_cifar10_[0.100_86.840_6.528]')
 # simulate_by_filename('vgg16_cifar10_[0.100_84.440_5.808]')
 
-simulate_by_filename('vgg16_cifar10_ft_scheduled.pth')
-simulate_by_filename('vgg16_cifar10_pt_scheduled.pth')
+simulate_by_filename('vgg16_cifar10_ft_scheduled')
+simulate_by_filename('vgg16_cifar10_pt_scheduled')
