@@ -14,11 +14,11 @@ import spikingjelly.clock_driven.functional as functional
 import matplotlib.pyplot as plt
 import spikingjelly.clock_driven.neuron as neuron
 
-####################################################
+########################################################################################################################
 #
 # Model init
 #
-####################################################
+########################################################################################################################
 model_name = 'vgg16'
 dataset = 'cifar10'
 
@@ -59,8 +59,11 @@ sum_k = 0.0
 cnt_k = 0.0
 train_batch_cnt = 0
 test_batch_cnt = 0
+
+# Define the model to be used is 'vgg16'
 model = models.__dict__[model_name](num_classes=10, dropout=0)
 
+# 'replace_maxpool2d_by_avgpool2d' & 'replace_relu_by_spikingnorm' are defined in 'modules.py'
 model = modules.replace_maxpool2d_by_avgpool2d(model)
 model = modules.replace_relu_by_spikingnorm(model,True)
 
@@ -74,16 +77,17 @@ for m in model.modules():
         nn.init.constant_(m.weight, val=1)
         nn.init.zeros_(m.bias)
 
-# --------------------- Define simulating configuration----------------------
+# --------------------- Define simulating configuration-----------------------------------------------------------------
 model.to(device)
 device = torch.device(device)
 if device.type == 'cuda':
 # if device.type == 'cpu': #Duc
     print(f"=> cuda memory allocated: {torch.cuda.memory_allocated(device.index)}")
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
-ann_train_module = nn.ModuleList() # Index 'ann_train_module' and 'snn_train_module' as modules
-snn_train_module = nn.ModuleList() # which are already defined
+# Index 'ann_train_module' and 'snn_train_module' as modules which are already defined
+ann_train_module = nn.ModuleList()
+snn_train_module = nn.ModuleList()
 
 
 # same as 'divide_trainable_modules' function in 'fast_train.py'
@@ -125,7 +129,7 @@ loss_function1 = nn.CrossEntropyLoss()
 loss_function2 = new_loss_function
 # Now, 'loss_function2' also computes loss between 'ann_out' & 'snn_out' by MSE or CosineSimilarity as defined above
 
-# ---------------------- Define 'optimizer1' ----------------------
+# ---------------------- Define 'optimizer1' ---------------------------------------------------------------------------
 if optimizer == 'sgd':
     optimizer1 = optim.SGD(ann_train_module.parameters(),
                                momentum=momentum,
@@ -139,7 +143,7 @@ elif optimizer == 'adamw':
     optimizer1 = optim.AdamW(ann_train_module.parameters(),
                            lr=lr,
                            weight_decay=decay)
-# -----------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 writer = SummaryWriter(log_dir)
 # The SummaryWriter class is your main entry to log data for consumption and visualization by TensorBoard
 
@@ -346,9 +350,10 @@ def para_train_val(epoch):
 # 1.same as 'snn_train' function in 'fast_train.py'
 # 2.'snn_train' uses 'train_dataloader' to train the model, it trains ANN and SNN, then compare results
 # 3.outputs:
-#       'snn_dist_loss': 2 losses are considered ('fast_loss' and 'dist_lost').
-#                        'snn_dist_loss' is cumulation of 'dist_loss'
-#       'snn_correct': nb of same elements between 'snn_predicted' and 'targets'
+#       'snn_dist_loss', 'snn_fast_loss':
+#                Two losses are considered ('fast_loss' and 'dist_lost'), which are loss between ANN & SNN training outputs
+#                'snn_dist_loss' is cumulation of 'dist_loss'
+#       'snn_correct': nb of same elements between 'snn_predicted' and 'targets' of SNN (not output of ANN training)
 def snn_train(epoch):
     print('\n *****snn_train*****')
     global sum_k, cnt_k, train_batch_cnt, last_k
@@ -369,7 +374,7 @@ def snn_train(epoch):
     for batch_idx, (inputs, targets) in enumerate(tqdm(train_dataloader)):
         sum_k = 0
         cnt_k = 0
-        # also calculate the ANN training value
+        # ----------------------Run ANN training------------------------------------------------------------------------
         inputs, targets = inputs.to(device), targets.to(device)
         ann_outputs = net(inputs)
         ann_loss = loss_function1(ann_outputs, targets)
@@ -378,19 +383,26 @@ def snn_train(epoch):
             print('encounter ann_loss', ann_loss)
             return False
 
+        # 'detach()' method constructs a new view on a tensor which is declared not to need gradients, i.e., it is
+        # to be excluded from further tracking of operations, and therefore the subgraph involving this view is not recorded.
         predict_outputs = ann_outputs.detach()
         _, ann_predicted = predict_outputs.max(1)
-        # -------------------------------------
+        # --------------------------------------------------------------------------------------------------------------
+
+        # ----------------------Run SNN training------------------------------------------------------------------------
         snn_outputs = net(inputs)
-        last_k = layerwise_k(F.relu(snn_outputs), torch.max(snn_outputs))
+
         # 'F.relu(snn_outputs)' returns positive elements, others are set to 0
         # 'torch.mac(snn_outputs)' return max element of 'snn_outputs'
         # 'layerwise_k' is defined above
+        last_k = layerwise_k(F.relu(snn_outputs), torch.max(snn_outputs))
 
-        fast_loss, dist_loss = loss_function2(predict_outputs, snn_outputs, (sum_k + last_k) / (cnt_k + 1))
         # 'predict_outputs' is output of ANN (i.e. 'ann_outputs'), 'snn_outputs' is output of SNN
-        # 'loss_function2' calculates difference between 'predict_outputs' and 'snn_outputs'
+        # 'loss_function2' uses MSE or CosineSimilarity technique to calculates difference between 'predict_outputs'
+        #  (returned by ANN) and 'snn_outputs'.
         # fast_loss = dist_loss + lam * [(sum_k + last_k) / (cnt_k + 1)]
+        fast_loss, dist_loss = loss_function2(predict_outputs, snn_outputs, (sum_k + last_k) / (cnt_k + 1))
+
         snn_dist_loss += dist_loss.item()
         snn_fast_loss += fast_loss.item()
         optimizer2.zero_grad()
@@ -402,13 +414,19 @@ def snn_train(epoch):
         total += tot
         sc = snn_predicted.eq(targets).sum().item()
         snn_correct += sc
+        # --------------------------------------------------------------------------------------------------------------
 
+        # The SummaryWriter class ('writer') is your main entry to log data for consumption and visualization by TensorBoard
+        # Log 4 parameters of each loop (1 LOOP FOR 1 PICTURE ?) for later consumption and visualization
+        # syntax: writer.add_scalar('',y,x)
         writer.add_scalar('Train/Acc', sc / tot, train_batch_cnt)
         writer.add_scalar('Train/DistLoss', dist_loss, train_batch_cnt)
         writer.add_scalar('Train/AvgK', (sum_k / cnt_k).item(), train_batch_cnt)
         writer.add_scalar('Train/LastK', last_k, train_batch_cnt)
         train_batch_cnt += 1
-        if train_batch_cnt % inspect_interval == 0: #'inspect_interval' is a time interval which is used to follow the data progress
+
+        # 'inspect_interval' is a time interval which is used to observe the data progress
+        if train_batch_cnt % inspect_interval == 0:
             if not snn_val(train_batch_cnt):
                 return False
             net.train()
@@ -424,8 +442,9 @@ def snn_train(epoch):
 
 # 1.same as 'get_acc' function in 'fast_train.py'
 # 2.output:
-#       'snn_acc': nb of same elements between 'predicted' (i.e. output from
-#                  'val_dataloader' (don't know training technique)) and 'targets'
+#       'snn_acc': nb of same elements between 'predicted' (i.e. testing output of 'model' on 'val_dataloader') and 'targets'
+# Used to update the best accuracy to save the checkpoint in 'snn_val'.
+# Why in 'para_train_val.py', the update is contained in the file, not in separate file like in SNN case???
 def get_acc(val_dataloader):
     print('\n *****get_acc*****')
     global model
@@ -509,7 +528,7 @@ def snn_val(iter):
         return False
     if acc > (best_acc - acc_tolerance)*100. and best_avg_k > avg_k:
         test_acc = get_acc(test_dataloader)
-        print('Saving checkpoint (para_train_val)...')
+        print('Saving checkpoint (snn_val)...')
         state = {
             'net': net.state_dict(),
             'acc': test_acc * 100,
@@ -524,7 +543,7 @@ def snn_val(iter):
         best_avg_k = avg_k
 
     if (epoch + 1) % 10 == 0:
-        print('Schedule saving checkpoint (para_train_val)...')
+        print('Schedule saving checkpoint (snn_val)...')
         state = {
             'net': net.state_dict(),
             'acc': acc,
@@ -631,7 +650,7 @@ def replace_spikingnorm_by_ifnode(model):
 
 # Used to set up and call the 'simulate' function
 def simulate_by_filename(save_name):
-    print('\n\n\n ########################################################################################################')
+    print('\n\n\n########################################################################################################')
     print('Start simulate by filename')
     print('########################################################################################################')
 
@@ -653,12 +672,12 @@ def simulate_by_filename(save_name):
 # Phase 1 training: training for weights
 #
 ########################################################################################################################
-print('\n\n\n ########################################################################################################')
+print('\n\n\n########################################################################################################')
 print('Start Phase 1: train for weights')
 print('########################################################################################################')
 
 for epoch in range(start_epoch, start_epoch + epoch):
-    print('\n *********************************************')
+    print('\n*********************************************')
     print('Epoch: ', epoch)
     print('*********************************************')
 
@@ -681,7 +700,7 @@ for epoch in range(start_epoch, start_epoch + epoch):
 # Phase 2 training: training for fast inference
 #
 ########################################################################################################################
-print('\n\n\n ########################################################################################################')
+print('\n\n\n########################################################################################################')
 print('Start Phase 2: train for fast inference')
 print('########################################################################################################')
 
@@ -743,11 +762,11 @@ for e in range(0, epoch): # 'epoch'=200 as defined in line 35
         if isinstance(m, modules.SpikingNorm):
             print('thres', m.calc_v_th().data, 'scale', m.calc_scale().data, 'scale_t',m.scale.data)
             # '.calc_v_th()' and '.calc_scale()' are 2 functions defined in 'modules.py'
-####################################################
+########################################################################################################################
 #
 # Simulate model
 #
-####################################################
+########################################################################################################################
 
 # simulate_by_filename('vgg16_cifar10_[0.100_87.880_7.643]')
 # simulate_by_filename('vgg16_cifar10_[0.100_86.840_6.528]')
