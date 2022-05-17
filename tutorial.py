@@ -211,8 +211,8 @@ def ann_train(epoch):
     total = 0
 
     for batch_idx, (inputs, targets) in enumerate(tqdm(train_dataloader)): #tqdm is a library in Python which is used for creating Progress Meters or Progress Bars
-        print('inputs of ann_train', inputs)
-        print('targets of ann_train', targets)
+        print('type of inputs of ann_train', type(inputs))
+        print('type of targets of ann_train', type(targets))
         inputs, targets = inputs.to(device), targets.to(device)
         ann_outputs = net(inputs)
         print('ann_outputs', ann_outputs)
