@@ -52,8 +52,8 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
-print('size of train_dataloader', size(train_dataloader))
-print('size of test_dataloader', size(test_dataloader))
+print('type of train_dataloader', type(train_dataloader))
+print('type of test_dataloader', type(test_dataloader))
 
 
 best_acc = 0.0
