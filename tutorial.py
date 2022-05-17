@@ -16,7 +16,7 @@ import spikingjelly.clock_driven.neuron as neuron
 
 ########################################################################################################################
 #
-# Model init
+# MODEL INITIALIZATION
 #
 ########################################################################################################################
 model_name = 'vgg16'
@@ -52,6 +52,9 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
+print('train_dataloader', train_dataloader)
+print('test_dataloader', test_dataloader)
+
 
 best_acc = 0.0
 start_epoch = 0
@@ -197,19 +200,22 @@ def hook(module, input, output):
 #       'ann_train_loss': loss between 'ann_outputs' and 'targets'
 #       'ann_correct': nb of same elements between 'ann_predicted' and 'targets'
 def ann_train(epoch):
-    print('\n *****ann_train*****')
+    print('\n ***** START ANN TRAINING (func ann_train) *****')
     global sum_k,cnt_k,train_batch_cnt
     net = model.to(device)
 
-    print('\nEpoch: %d Para Train' % epoch)
+    print('\nEpoch: %d' % epoch)
     net.train()
     ann_train_loss = 0
     ann_correct = 0
     total = 0
 
     for batch_idx, (inputs, targets) in enumerate(tqdm(train_dataloader)): #tqdm is a library in Python which is used for creating Progress Meters or Progress Bars
+        print('inputs of ann_train', inputs)
+        print('targets of ann_train', targets)
         inputs, targets = inputs.to(device), targets.to(device)
         ann_outputs = net(inputs)
+        print('ann_outputs', ann_outputs)
         ann_loss = loss_function1(ann_outputs, targets)
         ann_train_loss += (ann_loss.item()) # Sum up all 'ann_loss' patterns
         _, ann_predicted = ann_outputs.max(1) # find all cases along dim 1 (max in each row) of 'ann_outputs'
