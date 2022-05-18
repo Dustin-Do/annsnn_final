@@ -22,8 +22,8 @@ import spikingjelly.clock_driven.neuron as neuron
 model_name = 'vgg16'
 dataset = 'cifar10'
 
-device = 'cuda'
-#device = 'cpu' # Duc
+# device = 'cuda'
+device = 'cpu' # Duc
 optimizer = 'sgd'
 
 momentum = 0.9
@@ -32,7 +32,7 @@ schedule = [100, 150]
 gammas = [0.1, 0.1]
 decay = 1e-4
 batch_size = 50
-epoch = 10
+epoch = 5
 acc_tolerance = 0.1
 lam = 0.1
 sharescale = True
@@ -60,9 +60,9 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
-#print('type of train_dataloader', type(train_dataloader))
+print('type of train_dataloader', type(train_dataloader))
 #print('train_dataloader', train_dataloader)
-#print('type of test_dataloader', type(test_dataloader))
+print('type of test_dataloader', type(test_dataloader))
 #print('test_dataloader', test_dataloader)
 
 
@@ -95,8 +95,8 @@ for m in model.modules():
 # --------------------- Define simulating configuration-----------------------------------------------------------------
 model.to(device)
 device = torch.device(device)
-if device.type == 'cuda':
-#if device.type == 'cpu': #Duc
+# if device.type == 'cuda':
+if device.type == 'cpu': #Duc
     print(f"=> CUDA memory allocated: {torch.cuda.memory_allocated(device.index)}")
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -257,7 +257,7 @@ def ann_train(epoch):
         writer.add_scalar('Train/Loss', ann_loss.item(), train_batch_cnt)
         train_batch_cnt += 1
 
-    print('*** ANN training results (epoch %d): Loss:%.3f Acc:%.3f' % (epoch,
+    print('\n*** ANN training results (epoch %d): Loss:%.3f Acc:%.3f' % (epoch,
                                                       ann_train_loss,
                                                       ann_correct / total))
 
@@ -321,9 +321,9 @@ def para_train_val(epoch):
             ann_correct += ac
 
             # ----------------------------------------------------------------------------------------------------------
-            print('size of inputs', inputs.size())
-            print('size of targets', targets.size())
-            print('size of ann_outputs', ann_outputs.size())
+            #print('size of inputs', inputs.size())
+            #print('size of targets', targets.size())
+            #print('size of ann_outputs', ann_outputs.size())
             #-----------------------------------------------------------------------------------------------------------
 
             # 'layerwise_k':greedy layer-wise pretraining that
@@ -340,7 +340,7 @@ def para_train_val(epoch):
             writer.add_scalar('Test/LastK', last_k, test_batch_cnt)
             test_batch_cnt += 1
 
-        print('ANN trained model testing result (epoch %d): Loss:%.3f Acc:%.3f AvgK:%.3f LastK:%.3f' % (epoch,
+        print('\n*** ANN trained model testing result (epoch %d): Loss:%.3f Acc:%.3f AvgK:%.3f LastK:%.3f' % (epoch,
                                                              ann_test_loss,
                                                              ann_correct / total,
                                                              sum_k / cnt_k, last_k))
@@ -772,7 +772,7 @@ val_dataloader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_w
 #       'net.state_dict()': ???
 #       'acc': accuracy of the testing
 #       'epoch'
-model.load_state_dict(torch.load('train_vgg16_cifar10/vgg16_cifar10.pth')['net'])
+model.load_state_dict(torch.load('train_vgg16_cifar10/vgg16_cifar10_para_train.pth')['net'])
 
 # ----------------------------Don't understand--------------------------------------------------------------------------
 if sharescale:
