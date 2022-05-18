@@ -22,8 +22,8 @@ import spikingjelly.clock_driven.neuron as neuron
 model_name = 'vgg16'
 dataset = 'cifar10'
 
-device = 'cuda'
-# device = 'cpu' # Duc
+# device = 'cuda'
+device = 'cpu' # Duc
 optimizer = 'sgd'
 
 momentum = 0.9
@@ -37,11 +37,19 @@ acc_tolerance = 0.1
 lam = 0.1
 sharescale = True
 scale_init = 2.5
+
+
+# --------------------------------- File management --------------------------------------------------------------------
 conf = [model_name,dataset]
 save_name = '_'.join(conf) # 'save_name' = concatenation of all elements of 'conf'
 log_dir = 'train_' + save_name
 if not os.path.isdir(log_dir): # if 'log_dir' is not a directory
     os.makedirs(log_dir) # create path 'log_dir'
+
+# The SummaryWriter class is your main entry to log data for consumption and visualization by TensorBoard
+writer = SummaryWriter(log_dir)
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 
 # 'load_cv_data' is function defined in 'utils.py'
@@ -52,9 +60,9 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
-#print('type of train_dataloader', type(train_dataloader))
+print('type of train_dataloader', type(train_dataloader))
 #print('train_dataloader', train_dataloader)
-#print('type of test_dataloader', type(test_dataloader))
+print('type of test_dataloader', type(test_dataloader))
 #print('test_dataloader', test_dataloader)
 
 
@@ -62,6 +70,8 @@ best_acc = 0.0
 start_epoch = 0
 sum_k = 0.0
 cnt_k = 0.0
+last_k = 0
+best_avg_k = 1e5
 train_batch_cnt = 0
 test_batch_cnt = 0
 
@@ -85,16 +95,15 @@ for m in model.modules():
 # --------------------- Define simulating configuration-----------------------------------------------------------------
 model.to(device)
 device = torch.device(device)
-if device.type == 'cuda':
-# if device.type == 'cpu': #Duc
-    print(f"=> cuda memory allocated: {torch.cuda.memory_allocated(device.index)}")
+# if device.type == 'cuda':
+if device.type == 'cpu': #Duc
+    print(f"=> CUDA memory allocated: {torch.cuda.memory_allocated(device.index)}")
 # ----------------------------------------------------------------------------------------------------------------------
+
 
 # Index 'ann_train_module' and 'snn_train_module' as modules which are already defined
 ann_train_module = nn.ModuleList()
 snn_train_module = nn.ModuleList()
-
-
 # same as 'divide_trainable_modules' function in 'fast_train.py'
 def divide_trainable_modules(model):
     print('divide_trainable_modules')
@@ -108,11 +117,10 @@ def divide_trainable_modules(model):
             else:
                 ann_train_module.append(module)
     return model
-
-
 divide_trainable_modules(model)
 
 
+# ---------------------- Define loss function ---------------------------------------------------------------------------
 # same as 'new_loss_function' in 'fast_train.py'
 # this func used to calculate loss between 'ann_out' and 'snn_out' by different methods
 def new_loss_function(ann_out, snn_out, k, func='cos'):
@@ -128,11 +136,12 @@ def new_loss_function(ann_out, snn_out, k, func='cos'):
     loss = diff_loss + lam * k
     return loss, diff_loss
 
-
+# 'loss_function1' used to compute the cross entropy loss between the output of ANN training and target
 loss_function1 = nn.CrossEntropyLoss()
-# Now, 'loss_function1' computes the cross entropy loss between input and target
+# 'loss_function2' computes loss between 'ann_out' & 'snn_out' by MSE or CosineSimilarity as defined above
 loss_function2 = new_loss_function
-# Now, 'loss_function2' also computes loss between 'ann_out' & 'snn_out' by MSE or CosineSimilarity as defined above
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 # ---------------------- Define 'optimizer1' ---------------------------------------------------------------------------
 if optimizer == 'sgd':
@@ -149,12 +158,10 @@ elif optimizer == 'adamw':
                            lr=lr,
                            weight_decay=decay)
 # ----------------------------------------------------------------------------------------------------------------------
-writer = SummaryWriter(log_dir)
-# The SummaryWriter class is your main entry to log data for consumption and visualization by TensorBoard
 
 ######################################################################################################
 #
-# Some functions
+# SOME FUNCTIONS
 #
 ######################################################################################################
 
@@ -170,14 +177,6 @@ def adjust_learning_rate(optimizer, epoch):
             break
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
-
-
-sum_k = 0
-cnt_k = 0
-last_k = 0
-best_avg_k = 1e5
-test_batch_cnt = 0
-train_batch_cnt = 0
 
 
 # same as 'layerwise_k' function in 'fast_train.py'
@@ -206,59 +205,78 @@ def ann_train(epoch):
     global sum_k,cnt_k,train_batch_cnt
     net = model.to(device)
 
-    print('\nEpoch: %d' % epoch)
+    print('\n*** Epoch: %d' % epoch)
     net.train()
     ann_train_loss = 0
     ann_correct = 0
     total = 0
-
+    # 1. In ANN training, we use 'train_dataloader' as training dataset. 'train_dataloader' has 50000 32x32 images. The
+    #    below 'for' loop will loop 1000 time. Size of 'inputs' is [50, 3, 32, 32], it means that in each loop, 'inputs
+    #    contains 50 images, each image has 3 color channels, and each channel has size 32x32 pixel (matrix 32x32).
+    # 2. 'targets' has the size [50,1] with elements varying from 0 to 9 corresponding to one of 10 classes. Each image
+    #    has its targeted class.
+    # 3. 'ann_outputs' has the size [50,10]. Each image corresponds to one row which contains 10 possibilities of being
+    #    a class. So that we use 'ann_predicted' to find max possibility of each image, then compare with corresponding
+    #    target
     for batch_idx, (inputs, targets) in enumerate(tqdm(train_dataloader)): #tqdm is a library in Python which is used for creating Progress Meters or Progress Bars
-        #print('type of inputs of ann_train', type(inputs))
-        print('size of inputs of ann_train', inputs.size())
-        #print('type of targets of ann_train', type(targets))
-        print('size of targets of ann_train', targets.size())
-        
-        inputs, targets = inputs.to(device), targets.to(device)
-        ann_outputs = net(inputs)
-        print('type of ann_outputs', type(ann_outputs))
-        ann_loss = loss_function1(ann_outputs, targets)
+        inputs, targets = inputs.to(device), targets.to(device) # size of 'inputs': torch.Size([50, 3, 32, 32])
+                                                                # size of 'targets': torch.Size([50,1])
+        ann_outputs = net(inputs) # size of 'ann_outputs': torch.Size([50, 10])
+        ann_loss = loss_function1(ann_outputs, targets) # 'ann_loss' is a float number
         ann_train_loss += (ann_loss.item()) # Sum up all 'ann_loss' patterns
         _, ann_predicted = ann_outputs.max(1) # find all cases along dim 1 (max in each row) of 'ann_outputs'
-
+                                              # size of 'ann_predicted': torch.Size([50,1])
         tot = targets.size(0) # 'tot' equals to size of 1st dimension of 'targets'
         total += tot
         ac = ann_predicted.eq(targets).sum().item() # find elements of 'ann_predicted' that equal to 'target, then sum them up
         ann_correct += ac
 
+        # --------------------------------------------------------------------------------------------------------------
+        # print('type of inputs of ann_train', type(inputs))
+        # print('size of inputs of ann_train', inputs.size())
+        # print('type of targets of ann_train', type(targets))
+        # print('size of targets of ann_train', targets)
+        # print('size of ann_outputs', ann_outputs)
+        # print('ann_predicted', ann_predicted)
+        # --------------------------------------------------------------------------------------------------------------
+
+        # -------------------------Don't understand---------------------------------------------------------------------
         optimizer1.zero_grad()
         ann_loss.backward()
         # torch.nn.utils.clip_grad_norm_(ann_train_module.parameters(), 50)
-        optimizer1.step() # All optimizers implement a step() method, that updates the parameters. It can be used as beside syntax
+        # --------------------------------------------------------------------------------------------------------------
+
+        # All optimizers implement a step() method, that updates the parameters. It can be used as beside syntax
+        optimizer1.step()
         if np.isnan(ann_loss.item()) or np.isinf(ann_loss.item()):
-            print('encounter ann_loss', ann_loss)
+            print('Fail to calculate ann_loss', ann_loss)
             return False
 
+        # Use 'train_batch_cnt' to count loop. 'train_batch_cnt' varies from 0 to 999.
         writer.add_scalar('Train/Acc', ac / tot, train_batch_cnt)
         writer.add_scalar('Train/Loss', ann_loss.item(), train_batch_cnt)
         train_batch_cnt += 1
-    print('Para Train Epoch %d Loss:%.3f Acc:%.3f' % (epoch,
+
+    print('*** ANN training results (epoch %d): Loss:%.3f Acc:%.3f' % (epoch,
                                                       ann_train_loss,
                                                       ann_correct / total))
+
     writer.add_scalar('Train/EpochAcc', ann_correct / total, epoch)
     return
 
 
 # 1.same as 'val' function in 'para_train.py'
-# 2.'para_train_val' use variable 'test_dataloader' to test the model. It returns loss, accuracy which are the result of
-#    the test
+# 2.'para_train_val' use variable 'test_dataloader' to test the model which was trained by 'ann_train'. It returns loss,
+#   accuracy which are the result of the test
 # 3.outputs:
 #       'ann_test_loss': loss between 'ann_outputs' and 'targets'
 #       'ann_correct': nb of same elements between 'ann_predicted' and 'targets'
 #       'sum_k', 'cnt_k', 'last_k': WEIGHTs?
 def para_train_val(epoch):
-    print('\n *****para_train_val*****')
+    print('\n ***** RUN ANN TRAINED MODEL WITH TESTING DATA (func para_train_val) *****')
     global sum_k,cnt_k,test_batch_cnt,best_acc
-    net = model.to(device)
+    net = model.to(device) # Define 'net' as a CNN model which will be processed by 'device'. Both 'model' and 'device'
+                           # are defined above
 
     handles = []
     for m in net.modules():
@@ -271,6 +289,7 @@ def para_train_val(epoch):
     ann_test_loss = 0
     ann_correct = 0
     total = 0
+
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(tqdm(test_dataloader)):
             sum_k = 0
@@ -280,7 +299,7 @@ def para_train_val(epoch):
             ann_loss = loss_function1(ann_outputs, targets)
 
             if np.isnan(ann_loss.item()) or np.isinf(ann_loss.item()):
-                print('encounter ann_loss', ann_loss)
+                print('Fail to calculate ann_loss', ann_loss)
                 return False
 
             predict_outputs = ann_outputs.detach() # The 'detach()' method constructs a new view on a tensor which is
@@ -294,6 +313,13 @@ def para_train_val(epoch):
             total += tot
             ac = ann_predicted.eq(targets).sum().item() # count nb of same elements between 'ann_predicted' and 'targets'
             ann_correct += ac
+            # ----------------------------------------------------------------------------------------------------------
+            print('size of inputs', inputs.size())
+            print('size of targets', targets.size())
+            print('size of ann_outputs', ann_outputs.size())
+            #-----------------------------------------------------------------------------------------------------------
+
+
 
             # 'layerwise_k':greedy layer-wise pretraining that
             # allowed very deep neural networks to be successfully trained
@@ -309,7 +335,7 @@ def para_train_val(epoch):
             writer.add_scalar('Test/LastK', last_k, test_batch_cnt)
             test_batch_cnt += 1
 
-        print('Test Epoch %d Loss:%.3f Acc:%.3f AvgK:%.3f LastK:%.3f' % (epoch,
+        print('ANN trained model testing result (epoch %d): Loss:%.3f Acc:%.3f AvgK:%.3f LastK:%.3f' % (epoch,
                                                              ann_test_loss,
                                                              ann_correct / total,
                                                              sum_k / cnt_k, last_k))
