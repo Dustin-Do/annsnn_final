@@ -200,7 +200,7 @@ def hook(module, input, output):
 #       'ann_train_loss': loss between 'ann_outputs' and 'targets'
 #       'ann_correct': nb of same elements between 'ann_predicted' and 'targets'
 def ann_train(epoch):
-    print('\n ***** START ANN TRAINING (func ann_train) *****')
+    print('\n***** START ANN TRAINING (func ann_train) *****')
     global sum_k,cnt_k,train_batch_cnt
     net = model.to(device)
 
@@ -215,7 +215,7 @@ def ann_train(epoch):
         print('type of targets of ann_train', type(targets))
         inputs, targets = inputs.to(device), targets.to(device)
         ann_outputs = net(inputs)
-        print('ann_outputs', ann_outputs)
+        print('type of ann_outputs', type(ann_outputs))
         ann_loss = loss_function1(ann_outputs, targets)
         ann_train_loss += (ann_loss.item()) # Sum up all 'ann_loss' patterns
         _, ann_predicted = ann_outputs.max(1) # find all cases along dim 1 (max in each row) of 'ann_outputs'
