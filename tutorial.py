@@ -52,8 +52,10 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
-print('type of train_dataloader', type(train_dataloader))
-print('type of test_dataloader', type(test_dataloader))
+#print('type of train_dataloader', type(train_dataloader))
+print('size of train_dataloader', train_dataloader.size())
+#print('type of test_dataloader', type(test_dataloader))
+print('size of test_dataloader', test_dataloader.size())
 
 
 best_acc = 0.0
@@ -211,8 +213,11 @@ def ann_train(epoch):
     total = 0
 
     for batch_idx, (inputs, targets) in enumerate(tqdm(train_dataloader)): #tqdm is a library in Python which is used for creating Progress Meters or Progress Bars
-        print('type of inputs of ann_train', type(inputs))
-        print('type of targets of ann_train', type(targets))
+        #print('type of inputs of ann_train', type(inputs))
+        print('size of inputs of ann_train', inputs.size())
+        #print('type of targets of ann_train', type(targets))
+        print('size of targets of ann_train', targets.size())
+        
         inputs, targets = inputs.to(device), targets.to(device)
         ann_outputs = net(inputs)
         print('type of ann_outputs', type(ann_outputs))
