@@ -22,8 +22,8 @@ import spikingjelly.clock_driven.neuron as neuron
 model_name = 'vgg16'
 dataset = 'cifar10'
 
-# device = 'cuda'
-device = 'cpu' # Duc
+device = 'cuda'
+#device = 'cpu' # Duc
 optimizer = 'sgd'
 
 momentum = 0.9
@@ -60,9 +60,9 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
-print('type of train_dataloader', type(train_dataloader))
+#print('type of train_dataloader', type(train_dataloader))
 #print('train_dataloader', train_dataloader)
-print('type of test_dataloader', type(test_dataloader))
+#print('type of test_dataloader', type(test_dataloader))
 #print('test_dataloader', test_dataloader)
 
 
@@ -95,8 +95,8 @@ for m in model.modules():
 # --------------------- Define simulating configuration-----------------------------------------------------------------
 model.to(device)
 device = torch.device(device)
-# if device.type == 'cuda':
-if device.type == 'cpu': #Duc
+if device.type == 'cuda':
+#if device.type == 'cpu': #Duc
     print(f"=> CUDA memory allocated: {torch.cuda.memory_allocated(device.index)}")
 # ----------------------------------------------------------------------------------------------------------------------
 
