@@ -22,8 +22,8 @@ import spikingjelly.clock_driven.neuron as neuron
 model_name = 'vgg16'
 dataset = 'cifar10'
 
-device = 'cuda'
-#device = 'cpu' # Duc
+# device = 'cuda'
+device = 'cpu' # Duc
 optimizer = 'sgd'
 
 momentum = 0.9
@@ -32,7 +32,7 @@ schedule = [100, 150]
 gammas = [0.1, 0.1]
 decay = 1e-4
 batch_size = 50
-epoch = 200
+epoch = 10
 acc_tolerance = 0.1
 lam = 0.1
 sharescale = True
@@ -95,8 +95,8 @@ for m in model.modules():
 # --------------------- Define simulating configuration-----------------------------------------------------------------
 model.to(device)
 device = torch.device(device)
-if device.type == 'cuda':
-#if device.type == 'cpu': #Duc
+# if device.type == 'cuda':
+if device.type == 'cpu': #Duc
     print(f"=> CUDA memory allocated: {torch.cuda.memory_allocated(device.index)}")
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -201,17 +201,17 @@ def hook(module, input, output):
 #       'ann_train_loss': loss between 'ann_outputs' and 'targets'
 #       'ann_correct': nb of same elements between 'ann_predicted' and 'targets'
 def ann_train(epoch):
-    print('\n***** START ANN TRAINING (func ann_train) *****')
+    print('\n\n***** START ANN TRAINING (func ann_train) *****')
     global sum_k,cnt_k,train_batch_cnt
     net = model.to(device)
 
-    print('\n*** Epoch: %d' % epoch)
+    print('*** Epoch: %d' % epoch)
     net.train()
     ann_train_loss = 0
     ann_correct = 0
     total = 0
     # 1. In ANN training, we use 'train_dataloader' as training dataset. 'train_dataloader' has 50000 32x32 images. The
-    #    below 'for' loop will loop 1000 time. Size of 'inputs' is [50, 3, 32, 32], it means that in each loop, 'inputs
+    #    below 'for' loop will loop 1000 time. Size of 'inputs' is [50, 3, 32, 32], it means that in each loop, 'inputs'
     #    contains 50 images, each image has 3 color channels, and each channel has size 32x32 pixel (matrix 32x32).
     # 2. 'targets' has the size [50,1] with elements varying from 0 to 9 corresponding to one of 10 classes. Each image
     #    has its targeted class.
@@ -273,10 +273,12 @@ def ann_train(epoch):
 #       'ann_correct': nb of same elements between 'ann_predicted' and 'targets'
 #       'sum_k', 'cnt_k', 'last_k': WEIGHTs?
 def para_train_val(epoch):
-    print('\n ***** RUN ANN TRAINED MODEL WITH TESTING DATA (func para_train_val) *****')
+    print('\n\n***** RUN ANN TRAINED MODEL WITH TESTING DATA (func para_train_val) *****')
     global sum_k,cnt_k,test_batch_cnt,best_acc
     net = model.to(device) # Define 'net' as a CNN model which will be processed by 'device'. Both 'model' and 'device'
                            # are defined above
+
+    print('*** Epoch: %d' % epoch)
 
     handles = []
     for m in net.modules():
@@ -291,6 +293,10 @@ def para_train_val(epoch):
     total = 0
 
     with torch.no_grad():
+        # 1. Size of input: [50,3,32,32], of target: [50,1], of ann_outputs: [50,10]. All sizes are similar with in 'ann_train'.
+        #    The difference here is the 'for' loop 200 times instead of 1000 times as in 'ann_train'
+        # 2. In each loop, the 'ann_outputs' of 50 images will be calculated based on the weights available inside ANN trained
+        #    model.
         for batch_idx, (inputs, targets) in enumerate(tqdm(test_dataloader)):
             sum_k = 0
             cnt_k = 0
@@ -309,17 +315,16 @@ def para_train_val(epoch):
             ann_test_loss += (ann_loss.item())
             _, ann_predicted = predict_outputs.max(1) # '.max(1)' return max elements of rows in 'ann_predicted' and their positions
 
-            tot = targets.size(0) # 'tot' = nb of rows in maxtrix 'targets'
+            tot = targets.size(0) # 'tot' = nb of rows in matrix 'targets'
             total += tot
             ac = ann_predicted.eq(targets).sum().item() # count nb of same elements between 'ann_predicted' and 'targets'
             ann_correct += ac
+
             # ----------------------------------------------------------------------------------------------------------
             print('size of inputs', inputs.size())
             print('size of targets', targets.size())
             print('size of ann_outputs', ann_outputs.size())
             #-----------------------------------------------------------------------------------------------------------
-
-
 
             # 'layerwise_k':greedy layer-wise pretraining that
             # allowed very deep neural networks to be successfully trained
@@ -327,7 +332,7 @@ def para_train_val(epoch):
             last_k = layerwise_k(F.relu(ann_outputs), torch.max(ann_outputs))
 
             # The SummaryWriter class ('writer') is your main entry to log data for consumption and visualization by TensorBoard
-            # Log 4 parameters of each loop (1 LOOP FOR 1 PICTURE ?) for later consumption and visualization
+            # Log 4 parameters of each loop for later consumption and visualization
             # syntax: writer.add_scalar('',y,x)
             writer.add_scalar('Test/Acc', ac / tot, test_batch_cnt)
             writer.add_scalar('Test/Loss', ann_test_loss, test_batch_cnt)
@@ -359,9 +364,10 @@ def para_train_val(epoch):
         }
         if not os.path.isdir(log_dir):
             os.mkdir(log_dir) # create directory 'log_dir'
-        # save 'state' = ['net', 'acc', 'epoch'] to path train_vgg16_cifar10/vgg16_cifar10.pth
+
+        # save 'state' = ['net', 'acc', 'epoch'] to path train_vgg16_cifar10/vgg16_cifar10_para_train.pth
         # only have 1 file which saves the result
-        torch.save(state, log_dir + '/%s.pth'%(save_name))
+        torch.save(state, log_dir + '/%s_para_train.pth'%(save_name))
         best_acc = acc
     # ------------------------------------------------------------------------------------------------------------------
 
@@ -369,7 +375,7 @@ def para_train_val(epoch):
     # We save checkpoint after every 10 epochs
     avg_k = ((sum_k + last_k) / (cnt_k + 1)).item()
     if (epoch + 1) % 10 == 0:
-        print('Schedule Saving checkpoint (para_train_val)...')
+        print('Schedule saving checkpoint (para_train_val)...')
         state = {
             'net': net.state_dict(),
             'acc': acc,
@@ -378,7 +384,7 @@ def para_train_val(epoch):
         }
         # save 'state' = ['net', 'acc', 'epoch', 'avg_k'] to path train_vgg16_cifar10/vgg16_cifar10_pt_scheduled.pth
         # only have 1 file which saves the result
-        torch.save(state, log_dir + '/%s_pt_scheduled.pth' % (save_name))
+        torch.save(state, log_dir + '/%s_para_train_scheduled.pth' % (save_name))
     for handle in handles:
         handle.remove()
     # ------------------------------------------------------------------------------------------------------------------
@@ -392,11 +398,11 @@ def para_train_val(epoch):
 #                'snn_dist_loss' is cumulation of 'dist_loss'
 #       'snn_correct': nb of same elements between 'snn_predicted' and 'targets' of SNN (not output of ANN training)
 def snn_train(epoch):
-    print('\n *****snn_train*****')
+    print('\n\n***** START SNN TRAINING (func snn_train) *****')
     global sum_k, cnt_k, train_batch_cnt, last_k
     net = model.to(device)
 
-    print('\nEpoch: %d Fast Train' % epoch)
+    print('*** Epoch: %d' % epoch)
     net.train()
     snn_fast_loss = 0
     snn_dist_loss = 0
@@ -408,6 +414,7 @@ def snn_train(epoch):
         if isinstance(m, modules.SpikingNorm):
             handles.append(m.register_forward_hook(hook))
 
+
     for batch_idx, (inputs, targets) in enumerate(tqdm(train_dataloader)):
         sum_k = 0
         cnt_k = 0
@@ -417,7 +424,7 @@ def snn_train(epoch):
         ann_loss = loss_function1(ann_outputs, targets)
 
         if np.isnan(ann_loss.item()) or np.isinf(ann_loss.item()):
-            print('encounter ann_loss', ann_loss)
+            print('Fail to calculate ann_loss', ann_loss)
             return False
 
         # 'detach()' method constructs a new view on a tensor which is declared not to need gradients, i.e., it is
@@ -426,9 +433,18 @@ def snn_train(epoch):
         _, ann_predicted = predict_outputs.max(1)
         # --------------------------------------------------------------------------------------------------------------
 
+        # --------------------------------------------------------------------------------------------------------------
+        print('ANN TRAINING parameters\n')
+        print('size of input', inputs.size())
+        print('size of target', targets.size())
+        print('size of ann_outputs', ann_outputs.size())
+        # --------------------------------------------------------------------------------------------------------------
+
+
         # ----------------------Run SNN training------------------------------------------------------------------------
         snn_outputs = net(inputs)
-
+        print('SNN TRAINING parameters\n')
+        print('size of snn_outputa', snn_outputs.size())
         # 'F.relu(snn_outputs)' returns positive elements, others are set to 0
         # 'torch.mac(snn_outputs)' return max element of 'snn_outputs'
         # 'layerwise_k' is defined above
@@ -467,7 +483,7 @@ def snn_train(epoch):
             if not snn_val(train_batch_cnt):
                 return False
             net.train()
-    print('Fast Train Epoch %d Loss:%.3f Acc:%.3f' % (epoch,
+    print('SNN training result (epoch %d): Loss:%.3f Acc:%.3f' % (epoch,
                                                       snn_dist_loss,
                                                       snn_correct / total))
 
@@ -586,7 +602,7 @@ def snn_val(iter):
             'acc': acc,
             'epoch': epoch,
         }
-        torch.save(state, log_dir + '/%s_ft_scheduled.pth' % (save_name))
+        torch.save(state, log_dir + '/%s_fast_train_scheduled.pth' % (save_name))
     for handle in handles:
         handle.remove()
     return True
