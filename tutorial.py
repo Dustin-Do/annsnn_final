@@ -32,7 +32,7 @@ schedule = [100, 150]
 gammas = [0.1, 0.1]
 decay = 1e-4
 batch_size = 50
-epoch = 200
+epoch = 5
 acc_tolerance = 0.1
 lam = 0.1
 sharescale = True
@@ -60,9 +60,9 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
-print('type of train_dataloader', type(train_dataloader))
+#print('type of train_dataloader', type(train_dataloader))
 #print('train_dataloader', train_dataloader)
-print('type of test_dataloader', type(test_dataloader))
+#print('type of test_dataloader', type(test_dataloader))
 #print('test_dataloader', test_dataloader)
 
 
