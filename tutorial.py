@@ -649,34 +649,32 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
         # 1. Size of inputs: [50,3,32,32], of targets: [50,1]
         # 2. Loop 'for t in range(T):
         #           Variable 't' will be looped from 0 to 'T'-1 (in this case, from 0-99)
-        #           Size of 'out' (output of testing results) is [50,10]
+        #           Size of 'out' (output of testing results) is [50,10], of 'out_spikes_counter' is [50,10]
         for batch, (inputs, targets) in enumerate(test_dataloader):
-            print('size of input', inputs.size())
-            print('size of target', targets.size())
 
             for t in range(T):
-                #print('t', t)
+                print('t', t)
                 out = net(inputs.to(device))
-                print('size of output of simulate', out.size())
-                print('output of simulate', out)
+                #print('size of output of simulate', out.size())
+                #print('output of simulate', out)
                 if isinstance(out, tuple) or isinstance(out, list):
                     out = out[0]
                 if t == 0:
                     out_spikes_counter = out
                 else:
                     out_spikes_counter += out
-                print('size of out_spikes_counter', out_spikes_counter.size())
-                print('out_spikes_counter', out_spikes_counter)
                 # 'keys()' method returns a view object. The view object contains the keys of the dictionary, as a list.
                 if t not in correct_t.keys():
-                    # 'out_spikes_counter.max(1)' return max element of each row of 'out_spikes_counter'
+                    # 'out_spikes_counter.max(1)' return the value and indices of max elements of each row of 'out_spikes_counter'
+                    # 'out_spikes_counter.max(1)[1]' return the indices of max elements of each row of 'out_spikes_counter'
                     # 'float().sum().item()' sums up all float elements
-                    # what is the meaning of variable 'correct_t'?
+                    # 'correct_t' saves nb of similar elements between 'out_spikes_counter' and 'targets' in each loop of 't'
+                    # 'correct_t' will be (0:... 1:... 2:... ...)
                     correct_t[t] = (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
                 else:
                     correct_t[t] += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
-                print('correct_t[t]', correct_t[t])
-                print('correct_t', correct_t)
+
+            print('correct_t', correct_t)
             correct += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
             print('correct', correct)
             total += targets.numel() # '.numel()' returns the total number of elements in the input tensor
