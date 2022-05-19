@@ -60,9 +60,9 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
                  dataset=dataset,
                  data_target_dir=datapath[dataset]
                  )
-#print('type of train_dataloader', type(train_dataloader))
+print('type of train_dataloader', type(train_dataloader))
 #print('train_dataloader', train_dataloader)
-#print('type of test_dataloader', type(test_dataloader))
+print('type of test_dataloader', type(test_dataloader))
 #print('test_dataloader', test_dataloader)
 
 
@@ -578,7 +578,12 @@ def snn_val(iter):
                                                                          sum_k / cnt_k, last_k))
     writer.add_scalar('Test/IterAcc', ann_correct / total, iter)
 
-    # Save checkpoint.
+    # --------------------Save checkpoint-------------------------------------------------------------------------------
+    # We just save the checkpoint when there is a better accuracy appears ('if acc > best_acc')
+    # Parameters we save here are:
+    #       'net.state_dict()': ???
+    #       'acc': accuracy of the testing
+    #       'epoch'
     avg_k = ((sum_k + last_k) / (cnt_k + 1)).item()
     acc = 100. * ann_correct / total
     if acc < (best_acc - acc_tolerance)*100.:
@@ -594,11 +599,14 @@ def snn_val(iter):
         }
         if not os.path.isdir(log_dir):
             os.mkdir(log_dir)
-        torch.save(state, log_dir + '/%s_[%.3f_%.3f_%.3f].pth' % (save_name,
+        torch.save(state, log_dir + '/%s_fast_train_[%.3f_%.3f_%.3f].pth' % (save_name,
                                                                        lam,test_acc * 100,
                                                                        ((sum_k + last_k) / (cnt_k + 1)).item() ))
         best_avg_k = avg_k
+    # ------------------------------------------------------------------------------------------------------------------
 
+    # --------------------Schedule save checkpoint----------------------------------------------------------------------
+    # We save checkpoint after every 10 epochs
     if (epoch + 1) % 10 == 0:
         print('Schedule saving checkpoint (snn_val)...')
         state = {
@@ -610,6 +618,8 @@ def snn_val(iter):
     for handle in handles:
         handle.remove()
     return True
+    # ------------------------------------------------------------------------------------------------------------------
+
 
 # 1. inputs:
 #       'net': weights of model used to simulate. It would be defined in 'simulate_by_filename'. It can be loaded from
@@ -643,8 +653,8 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
 
             for t in range(T):
                 print('t', t)
-                print('size of output of simulate', out.size())
                 out = net(inputs.to(device))
+                print('size of output of simulate', out.size())
                 if isinstance(out, tuple) or isinstance(out, list):
                     out = out[0]
                 if t == 0:
@@ -660,8 +670,12 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
                     correct_t[t] = (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
                 else:
                     correct_t[t] += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
+                print('correct_t[t]', correct_t[t])
+                print('correct_t', correct_t)
             correct += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
+            print('correct', correct)
             total += targets.numel() # '.numel()' returns the total number of elements in the input tensor
+            print('total', total)
             functional.reset_net(net)
 
             #--------------------------------Plotting-------------------------------------------------------------------
@@ -841,5 +855,5 @@ for e in range(0, epoch): # 'epoch'=200 as defined in line 35
 # simulate_by_filename('vgg16_cifar10_[0.100_86.840_6.528]')
 # simulate_by_filename('vgg16_cifar10_[0.100_84.440_5.808]')
 
-simulate_by_filename('vgg16_cifar10_ft_scheduled')
-simulate_by_filename('vgg16_cifar10_pt_scheduled')
+simulate_by_filename('vgg16_cifar10_para_train_scheduled')
+#simulate_by_filename('vgg16_cifar10_pt_scheduled')
