@@ -22,8 +22,8 @@ import spikingjelly.clock_driven.neuron as neuron
 model_name = 'vgg16'
 dataset = 'cifar10'
 
-device = 'cuda'
-#device = 'cpu' # Duc
+# device = 'cuda'
+device = 'cpu' # Duc
 optimizer = 'sgd'
 
 momentum = 0.9
@@ -32,7 +32,7 @@ schedule = [100, 150]
 gammas = [0.1, 0.1]
 decay = 1e-4
 batch_size = 50
-epoch = 5
+epoch = 200
 acc_tolerance = 0.1
 lam = 0.1
 sharescale = True
@@ -95,8 +95,8 @@ for m in model.modules():
 # --------------------- Define simulating configuration-----------------------------------------------------------------
 model.to(device)
 device = torch.device(device)
-if device.type == 'cuda':
-#if device.type == 'cpu': #Duc
+# if device.type == 'cuda':
+if device.type == 'cpu': #Duc
     print(f"=> CUDA memory allocated: {torch.cuda.memory_allocated(device.index)}")
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -159,16 +159,15 @@ elif optimizer == 'adamw':
                            weight_decay=decay)
 # ----------------------------------------------------------------------------------------------------------------------
 
-######################################################################################################
+########################################################################################################################
 #
 # SOME FUNCTIONS
 #
-######################################################################################################
-
+########################################################################################################################
 
 # same as 'adjust_learning_rate' function in 'fast_train.py'
 def adjust_learning_rate(optimizer, epoch):
-    print('adjust_learning_rate')
+    print('\nadjust_learning_rate\n')
     global lr
     for (gamma, step) in zip(gammas, schedule):
         if (epoch >= step):
@@ -205,7 +204,7 @@ def ann_train(epoch):
     global sum_k,cnt_k,train_batch_cnt
     net = model.to(device)
 
-    print('*** Epoch: %d' % epoch)
+    #print('*** Epoch: %d' % epoch)
     net.train()
     ann_train_loss = 0
     ann_correct = 0
@@ -278,7 +277,7 @@ def para_train_val(epoch):
     net = model.to(device) # Define 'net' as a CNN model which will be processed by 'device'. Both 'model' and 'device'
                            # are defined above
 
-    print('*** Epoch: %d' % epoch)
+    #print('*** Epoch: %d' % epoch)
 
     handles = []
     for m in net.modules():
@@ -414,7 +413,8 @@ def snn_train(epoch):
         if isinstance(m, modules.SpikingNorm):
             handles.append(m.register_forward_hook(hook))
 
-
+    # Size of 'inputs': [50,3,32,32], of 'targets': [50,1], of 'ann_outputs': [50,10], of 'snn_outputs': [50,10]
+    # Every size are the same as in ANN training
     for batch_idx, (inputs, targets) in enumerate(tqdm(train_dataloader)):
         sum_k = 0
         cnt_k = 0
@@ -434,17 +434,18 @@ def snn_train(epoch):
         # --------------------------------------------------------------------------------------------------------------
 
         # --------------------------------------------------------------------------------------------------------------
-        print('ANN TRAINING parameters\n')
-        print('size of input', inputs.size())
-        print('size of target', targets.size())
-        print('size of ann_outputs', ann_outputs.size())
+        # print('ANN TRAINING parameters\n')
+        # print('size of input', inputs.size())
+        # print('size of target', targets.size())
+        # print('size of ann_outputs', ann_outputs.size())
         # --------------------------------------------------------------------------------------------------------------
 
 
         # ----------------------Run SNN training------------------------------------------------------------------------
         snn_outputs = net(inputs)
-        print('SNN TRAINING parameters\n')
-        print('size of snn_outputa', snn_outputs.size())
+        # print('SNN TRAINING parameters\n')
+        # print('size of snn_outputa', snn_outputs.size())
+
         # 'F.relu(snn_outputs)' returns positive elements, others are set to 0
         # 'torch.mac(snn_outputs)' return max element of 'snn_outputs'
         # 'layerwise_k' is defined above
@@ -483,7 +484,7 @@ def snn_train(epoch):
             if not snn_val(train_batch_cnt):
                 return False
             net.train()
-    print('SNN training result (epoch %d): Loss:%.3f Acc:%.3f' % (epoch,
+    print('*** SNN training result (epoch %d): Loss:%.3f Acc:%.3f' % (epoch,
                                                       snn_dist_loss,
                                                       snn_correct / total))
 
@@ -496,10 +497,10 @@ def snn_train(epoch):
 # 1.same as 'get_acc' function in 'fast_train.py'
 # 2.output:
 #       'snn_acc': nb of same elements between 'predicted' (i.e. testing output of 'model' on 'val_dataloader') and 'targets'
-# Used to update the best accuracy to save the checkpoint in 'snn_val'.
-# Why in 'para_train_val.py', the update is contained in the file, not in separate file like in SNN case???
+# 3.Used to update the best accuracy to save the checkpoint in 'snn_val'.
+# 4.Why in 'para_train_val.py', the update is contained in the file, not in separate file like in SNN case???
 def get_acc(val_dataloader):
-    print('\n *****get_acc*****')
+    print('\nget_acc\n')
     global model
     net = model
     net.to(device)
@@ -526,7 +527,7 @@ def get_acc(val_dataloader):
 # 3.used for test dataset
 # 3.why 'snn_val' uses ANN training instead of SNN???
 def snn_val(iter):
-    print('\n *****snn_val*****')
+    print('\nsnn_val\n')
     global sum_k, cnt_k, test_batch_cnt, best_acc, last_k, best_avg_k
     net = model.to(device)
 
@@ -544,11 +545,13 @@ def snn_val(iter):
             sum_k = 0
             cnt_k = 0
             inputs, targets = inputs.to(device), targets.to(device)
+
+            # ----------------------------ANN---------------------------------------------------------------------------
             ann_outputs = net(inputs)
             ann_loss = loss_function1(ann_outputs, targets)
 
             if np.isnan(ann_loss.item()) or np.isinf(ann_loss.item()):
-                print('encounter ann_loss', ann_loss)
+                print('Fail to calculate ann_loss', ann_loss)
                 return False
 
             predict_outputs = ann_outputs.detach()
@@ -559,6 +562,7 @@ def snn_val(iter):
             total += tot
             ac = ann_predicted.eq(targets).sum().item()
             ann_correct += ac
+            # ----------------------------------------------------------------------------------------------------------
 
             last_k = layerwise_k(F.relu(ann_outputs), torch.max(ann_outputs))
             # SummaryWriter class ('writer') is a main entry to log data for consumption, visualization by TensorBoard
@@ -568,7 +572,7 @@ def snn_val(iter):
             writer.add_scalar('Test/LastK', last_k, test_batch_cnt)
             test_batch_cnt += 1
             #–––––-----------–––––-----------–––––-----------–––––-----------–––––-----------–––––-----------
-        print('Test Iter %d Loss:%.3f Acc:%.3f AvgK:%.3f LastK:%.3f' % (iter,
+        print('Test Iter %d: Loss:%.3f Acc:%.3f AvgK:%.3f LastK:%.3f' % (iter,
                                                                          ann_test_loss,
                                                                          ann_correct / total,
                                                                          sum_k / cnt_k, last_k))
@@ -607,15 +611,16 @@ def snn_val(iter):
         handle.remove()
     return True
 
-# inputs:
-#       'net': = 'model.to(device)'
+# 1. inputs:
+#       'net': weights of model used to simulate. It would be defined in 'simulate_by_filename'. It can be loaded from
+#              checkpoint file of (no schedule or schedule) ANN training or SNN training
 #       'T': given parameter
 #       'save_name': filename of the dataset which is input of 'simulate_by_filename' function
 #       'log_dir': folder to save simulated results
 #       'ann_baseline': check if we plot the figures or not
-# This function uses 'test_dataloader' dataset to run the simulation based on the weights have been found in ANN training
+# 2. This function uses 'test_dataloader' dataset to run the simulation based on the weights have been found in ANN training
 def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
-    print('*****simulate*****')
+    print('\nStart simulation (func simulate)\n')
     net.to(device) # link to device for simulation
     functional.reset_net(net)
     correct_t = {}
@@ -632,9 +637,14 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
         correct = 0.0
         total = 0.0
 
-        for batch, (img, label) in enumerate(test_dataloader):
+        for batch, (inputs, targets) in enumerate(test_dataloader):
+            print('size of input', inputs.size())
+            print('size of target', targets.size())
+
             for t in range(T):
-                out = net(img.to(device))
+                print('t', t)
+                print('size of output of simulate', out.size())
+                out = net(inputs.to(device))
                 if isinstance(out, tuple) or isinstance(out, list):
                     out = out[0]
                 if t == 0:
@@ -647,11 +657,11 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
                     # 'out_spikes_counter.max(1)' return max element of each row of 'out_spikes_counter'
                     # 'float().sum().item()' sums up all float elements
                     # what is the meaning of variable 'correct_t'?
-                    correct_t[t] = (out_spikes_counter.max(1)[1] == label.to(device)).float().sum().item()
+                    correct_t[t] = (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
                 else:
-                    correct_t[t] += (out_spikes_counter.max(1)[1] == label.to(device)).float().sum().item()
-            correct += (out_spikes_counter.max(1)[1] == label.to(device)).float().sum().item()
-            total += label.numel() # '.numel()' returns the total number of elements in the input tensor
+                    correct_t[t] += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
+            correct += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
+            total += targets.numel() # '.numel()' returns the total number of elements in the input tensor
             functional.reset_net(net)
 
             #--------------------------------Plotting-------------------------------------------------------------------
@@ -691,7 +701,7 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
 
 # same as 'replace_spikingnorm_by_ifnode' in 'modules.py'
 def replace_spikingnorm_by_ifnode(model):
-    print('\n *****replace_spikingnorm_by_ifnode*****')
+    print('\nreplace_spikingnorm_by_ifnode\n')
     for name, module in model._modules.items():
         if hasattr(module,"_modules"):
             model._modules[name] = replace_spikingnorm_by_ifnode(module)
@@ -722,13 +732,14 @@ def simulate_by_filename(save_name):
 
 ########################################################################################################################
 #
-# Phase 1 training: training for weights
+# PHASE 1: ANN TRAINING FOR WEIGHTS OF MODEL and SAVE CHECKPOINTS OF ANN TRAINED MODEL
 #
 ########################################################################################################################
 print('\n\n\n########################################################################################################')
-print('Start Phase 1: train for weights')
+print('PHASE 1: ANN TRAINING FOR WEIGHTS OF MODEL and SAVE CHECKPOINTS OF ANN TRAINED MODEL')
 print('########################################################################################################')
 
+# Number of epochs depends on the value of 'epoch' defined above
 for epoch in range(start_epoch, start_epoch + epoch):
     print('\n*********************************************')
     print('Epoch: ', epoch)
@@ -790,7 +801,7 @@ divide_trainable_modules(model)
 lr = 0.001
 inspect_interval = 100
 
-# --------------------------Define optimizer----------------------------------------------------------------------------
+# -------------------------- Define 'optimizer2' -----------------------------------------------------------------------
 if optimizer == 'sgd':
     optimizer2 = optim.SGD(snn_train_module.parameters(),
                            momentum=momentum,
@@ -801,12 +812,17 @@ elif optimizer == 'adam':
                            lr=lr,
                            weight_decay=decay)
 # ----------------------------------------------------------------------------------------------------------------------
-
+# 'get_acc' used to get the best testing accuracy returned by ANN
 best_acc = get_acc(val_dataloader)
 
 for e in range(0, epoch): # 'epoch'=200 as defined in line 35
-    print("Epoch: ",e)
+    print('\n*********************************************')
+    print('Epoch: ', epoch)
+    print('*********************************************')
+
     adjust_learning_rate(optimizer2, e)
+    # In here, the 'snn_train' uses the 'model' with parameters saved in 'train_vgg16_cifar10/vgg16_cifar10_para_train.pth'.
+    # These parameters were obtained from the ANN training (line 781)
     ret = snn_train(e)
     if ret == False:
         break
@@ -817,7 +833,7 @@ for e in range(0, epoch): # 'epoch'=200 as defined in line 35
             # '.calc_v_th()' and '.calc_scale()' are 2 functions defined in 'modules.py'
 ########################################################################################################################
 #
-# Simulate model
+# SIMULATION
 #
 ########################################################################################################################
 
