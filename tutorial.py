@@ -646,22 +646,27 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
         net.eval()
         correct = 0.0
         total = 0.0
-
+        # 1. Size of inputs: [50,3,32,32], of targets: [50,1]
+        # 2. Loop 'for t in range(T):
+        #           Variable 't' will be looped from 0 to 'T'-1 (in this case, from 0-99)
+        #           Size of 'out' (output of testing results) is [50,10]
         for batch, (inputs, targets) in enumerate(test_dataloader):
             print('size of input', inputs.size())
             print('size of target', targets.size())
 
             for t in range(T):
-                print('t', t)
+                #print('t', t)
                 out = net(inputs.to(device))
                 print('size of output of simulate', out.size())
+                print('output of simulate', out)
                 if isinstance(out, tuple) or isinstance(out, list):
                     out = out[0]
                 if t == 0:
                     out_spikes_counter = out
                 else:
                     out_spikes_counter += out
-
+                print('size of out_spikes_counter', out_spikes_counter.size())
+                print('out_spikes_counter', out_spikes_counter)
                 # 'keys()' method returns a view object. The view object contains the keys of the dictionary, as a list.
                 if t not in correct_t.keys():
                     # 'out_spikes_counter.max(1)' return max element of each row of 'out_spikes_counter'
@@ -686,9 +691,7 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
             if ann_baseline != 0:
                 plt.plot(x, np.ones_like(x) * ann_baseline, label='ANN', c='g', linestyle=':')
                 plt.text(0, ann_baseline + 1, "%.3f%%" % (ann_baseline), fontdict={'size': '8', 'color': 'g'})
-            plt.title("%s Simulation \n[test samples:%.1f%%]" % (
-                save_name, 100 * total / len(test_dataloader.dataset)
-            ))
+            plt.title("%s Simulation \n[test samples:%.1f%%]" % (save_name, 100 * total / len(test_dataloader.dataset)))
             plt.xlabel("T")
             plt.ylabel("Accuracy(%)")
             plt.legend()
@@ -698,8 +701,7 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
                      fontdict={'size': '12', 'color': 'r'})
 
             plt.scatter([x[argmax]], [y[argmax]], c='r')
-            print('[SNN Simulating... %.2f%%] Acc:%.3f' % (100 * total / len(test_dataloader.dataset),
-                                                                     correct / total))
+            print('[SNN Simulating... %.2f%%] Acc:%.3f' % (100 * total / len(test_dataloader.dataset), correct / total))
             acc_list = np.array(list(correct_t.values())).astype(np.float32) / total * 100
             np.save(log_dir + '/snn_acc-list' + ('-constant'), acc_list)
             plt.savefig(log_dir + '/sim_' + save_name + ".jpg", dpi=1080)
@@ -710,7 +712,7 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
             plt.close()
             # ----------------------------------------------------------------------------------------------------------
         acc = correct / total
-        print('SNN Simulating Accuracy:%.3f' % (acc ))
+        print('\nSNN SIMULATING ACCURACY:%.3f\n' % (acc))
 
 
 # same as 'replace_spikingnorm_by_ifnode' in 'modules.py'
@@ -727,10 +729,7 @@ def replace_spikingnorm_by_ifnode(model):
 
 # Used to set up and call the 'simulate' function
 def simulate_by_filename(save_name):
-    print('\n\n\n########################################################################################################')
-    print('Start simulate by filename')
-    print('########################################################################################################')
-
+    print('\n***** SIMULATE BY FILENAME *****')
     print('Filename: %s' %save_name)
     model = models.__dict__[model_name](num_classes=10, dropout=0)
     model = modules.replace_maxpool2d_by_avgpool2d(model) #function from 'modules.py'
@@ -775,11 +774,11 @@ for epoch in range(start_epoch, start_epoch + epoch):
 
 ########################################################################################################################
 #
-# Phase 2 training: training for fast inference
+# PHASE 2: SNN TRAINING
 #
 ########################################################################################################################
 print('\n\n\n########################################################################################################')
-print('Start Phase 2: train for fast inference')
+print('PHASE 2: SNN TRAINING')
 print('########################################################################################################')
 
 dataset = train_dataloader.dataset
@@ -793,7 +792,7 @@ val_dataloader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_w
 # In PyTorch, the learnable parameters (i.e. weights and biases) of torch.nn.Module model are contained in the model’s
 # parameters (accessed with model.parameters()). A state_dict is simply a Python dictionary object that maps each layer
 # to its parameter tensor.
-# Load weights from file having path 'train_vgg16_cifar10/vgg16_cifar10.pth', which contains:
+# Load weights from file having path 'train_vgg16_cifar10/vgg16_cifar10_para_train.pth', which contains:
 #       'net.state_dict()': ???
 #       'acc': accuracy of the testing
 #       'epoch'
@@ -831,7 +830,7 @@ best_acc = get_acc(val_dataloader)
 
 for e in range(0, epoch): # 'epoch'=200 as defined in line 35
     print('\n*********************************************')
-    print('Epoch: ', epoch)
+    print('Epoch: ', e)
     print('*********************************************')
 
     adjust_learning_rate(optimizer2, e)
@@ -850,6 +849,9 @@ for e in range(0, epoch): # 'epoch'=200 as defined in line 35
 # SIMULATION
 #
 ########################################################################################################################
+print('\n\n\n########################################################################################################')
+print('START SIMULATION ON TRAINED WEIGHTS')
+print('########################################################################################################')
 
 # simulate_by_filename('vgg16_cifar10_[0.100_87.880_7.643]')
 # simulate_by_filename('vgg16_cifar10_[0.100_86.840_6.528]')
