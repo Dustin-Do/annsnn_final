@@ -662,7 +662,7 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
             #           4. After summing up of 'out', we always compare 'out_spikes_counter' with 'targets' to find nb of
             #           similar elements and save to 'correct_t'
             for t in range(T):
-                print('t', t)
+                # print('t', t)
                 out = net(inputs.to(device))
                 #print('size of output of simulate', out.size())
                 #print('output of simulate', out)
