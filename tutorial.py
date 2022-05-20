@@ -443,6 +443,8 @@ def snn_train(epoch):
 
         # ----------------------Run SNN training------------------------------------------------------------------------
         snn_outputs = net(inputs)
+        check = (ann_outputs == snn_outputs)
+        print('Is ann_outputs = snn_outputs', check)
         # print('SNN TRAINING parameters\n')
         # print('size of snn_outputa', snn_outputs.size())
 
@@ -483,6 +485,9 @@ def snn_train(epoch):
         if train_batch_cnt % inspect_interval == 0:
             if not snn_val(train_batch_cnt):
                 return False
+            # 'net.train()' tells your model that you are training the model. So effectively layers like dropout,
+            # batchnorm etc. which behave different on the train and test procedures know what is going on and hence
+            # can behave accordingly.
             net.train()
     print('*** SNN training result (epoch %d): Loss:%.3f Acc:%.3f' % (epoch,
                                                       snn_dist_loss,
@@ -646,12 +651,16 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
         net.eval()
         correct = 0.0
         total = 0.0
-        # 1. Size of inputs: [50,3,32,32], of targets: [50,1]
-        # 2. Loop 'for t in range(T):
-        #           Variable 't' will be looped from 0 to 'T'-1 (in this case, from 0-99)
-        #           Size of 'out' (output of testing results) is [50,10], of 'out_spikes_counter' is [50,10]
-        for batch, (inputs, targets) in enumerate(test_dataloader):
 
+        # 1. Size of inputs: [50,3,32,32], of targets: [50,1]
+        for batch, (inputs, targets) in enumerate(test_dataloader):
+            # Loop 'for t in range(T)':
+            #           1. Variable 't' will be looped from 0 to 'T'-1 (in this case, from 0-99)
+            #           2. Size of 'out' (output of testing results) is [50,10], of 'out_spikes_counter' is [50,10]
+            #           3. In each loop of 't', 'out' will be predicted. Each 'out' after a loop will be sum up and save
+            #           to 'out_spikes_counter'.
+            #           4. After summing up of 'out', we always compare 'out_spikes_counter' with 'targets' to find nb of
+            #           similar elements and save to 'correct_t'
             for t in range(T):
                 print('t', t)
                 out = net(inputs.to(device))
@@ -670,29 +679,38 @@ def simulate(net, T, save_name, log_dir, ann_baseline=0.0):
                     # 'float().sum().item()' sums up all float elements
                     # 'correct_t' saves nb of similar elements between 'out_spikes_counter' and 'targets' in each loop of 't'
                     # 'correct_t' will be (0:... 1:... 2:... ...)
+                    # Normally, elements of 'correct_t' will be the same and equal to 'correct'
                     correct_t[t] = (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
                 else:
                     correct_t[t] += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
 
-            print('correct_t', correct_t)
+            # 'correct' counts the nb of correct classified images. The value of 'correct' is a cumulation of correct
+            # classified images after each iteration of classifying 50 images
             correct += (out_spikes_counter.max(1)[1] == targets.to(device)).float().sum().item()
-            print('correct', correct)
+            #print('correct', correct)
             total += targets.numel() # '.numel()' returns the total number of elements in the input tensor
-            print('total', total)
+            #print('total', total)
             functional.reset_net(net)
 
-            #--------------------------------Plotting-------------------------------------------------------------------
+            #------------------------------Plot testing result of SNN --------------------------------------------------
             fig = plt.figure()
             x = np.array(list(correct_t.keys())).astype(np.float32) + 1
             y = np.array(list(correct_t.values())).astype(np.float32) / total * 100
             plt.plot(x, y, label='SNN', c='b')
+            # ----------------------------------------------------------------------------------------------------------
+
+            #------------------------------Plot testing result of ANN --------------------------------------------------
             if ann_baseline != 0:
                 plt.plot(x, np.ones_like(x) * ann_baseline, label='ANN', c='g', linestyle=':')
                 plt.text(0, ann_baseline + 1, "%.3f%%" % (ann_baseline), fontdict={'size': '8', 'color': 'g'})
-            plt.title("%s Simulation \n[test samples:%.1f%%]" % (save_name, 100 * total / len(test_dataloader.dataset)))
+            #-----------------------------------------------------------------------------------------------------------
+
+            plt.title("Weights from file: %s \n[test samples:%.1f%%]" % (save_name, 100 * total / len(test_dataloader.dataset)))
             plt.xlabel("T")
             plt.ylabel("Accuracy(%)")
             plt.legend()
+
+
             argmax = np.argmax(y)
             disp_bias = 0.3 * float(T) if x[argmax] / T > 0.7 else 0
             plt.text(x[argmax] - 0.8 - disp_bias, y[argmax] + 0.8, "MAX:%.3f%% T=%d" % (y[argmax], x[argmax]),
