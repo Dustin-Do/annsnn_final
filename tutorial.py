@@ -66,7 +66,6 @@ train_dataloader, test_dataloader = load_cv_data(data_aug=False,
 
 f.write('train_dataloader:\n')
 f.write('type: ' + repr(type(train_dataloader)) + '\n')
-f.write('size: ' + repr(torch.tensor(train_dataloader).size()) + '\n')
 
 
 best_acc = 0.0
