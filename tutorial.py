@@ -38,7 +38,8 @@ lam = 0.1
 sharescale = True
 scale_init = 2.5
 
-
+f = open("trekking.txt","w")
+f.write(Hello world')
 # --------------------------------- File management --------------------------------------------------------------------
 conf = [model_name,dataset]
 save_name = '_'.join(conf) # 'save_name' = concatenation of all elements of 'conf'
@@ -876,3 +877,7 @@ print('#########################################################################
 
 simulate_by_filename('vgg16_cifar10_para_train')
 #simulate_by_filename('vgg16_cifar10_pt_scheduled')
+        
+        
+f.close()        
+        
