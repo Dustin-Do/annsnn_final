@@ -39,7 +39,7 @@ sharescale = True
 scale_init = 2.5
 
 f = open("trekking.txt", "w")
-f.write('Hello world')
+f.write('Hello world \n')
 
 # --------------------------------- File management --------------------------------------------------------------------
 conf = [model_name,dataset]
