@@ -66,7 +66,9 @@ print('type of train_dataloader', type(train_dataloader))
 #print('train_dataloader', train_dataloader)
 print('type of test_dataloader', type(test_dataloader))
 #print('test_dataloader', test_dataloader)
-f.write('train_dataloader:', 'type:', type(train_dataloader))
+f.write('train_dataloader:')
+f.write('type:')
+f.write(type(train_dataloader))
 
 best_acc = 0.0
 start_epoch = 0
