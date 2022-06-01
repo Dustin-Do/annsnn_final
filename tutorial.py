@@ -38,8 +38,6 @@ lam = 0.1
 sharescale = True
 scale_init = 2.5
 
-f = open("trekking.txt", "w")
-f.write('Hello world \n')
 
 # --------------------------------- File management --------------------------------------------------------------------
 conf = [model_name,dataset]
@@ -66,9 +64,7 @@ print('type of train_dataloader', type(train_dataloader))
 #print('train_dataloader', train_dataloader)
 print('type of test_dataloader', type(test_dataloader))
 #print('test_dataloader', test_dataloader)
-f.write('train_dataloader:')
-f.write('type:')
-f.write(repr(type(train_dataloader)))
+
 
 best_acc = 0.0
 start_epoch = 0
@@ -880,5 +876,3 @@ print('#########################################################################
 
 simulate_by_filename('vgg16_cifar10_para_train')
 #simulate_by_filename('vgg16_cifar10_pt_scheduled')
-
-f.close()
