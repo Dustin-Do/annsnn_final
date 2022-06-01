@@ -23,7 +23,7 @@ model_name = 'vgg16'
 dataset = 'cifar10'
 
 device = 'cuda'
-#device = 'cpu' # Duc
+# device = 'cpu' # Duc
 optimizer = 'sgd'
 
 momentum = 0.9
@@ -38,8 +38,7 @@ lam = 0.1
 sharescale = True
 scale_init = 2.5
 
-f = open("trekking.txt","w")
-f.write('Hello world')
+
 # --------------------------------- File management --------------------------------------------------------------------
 conf = [model_name,dataset]
 save_name = '_'.join(conf) # 'save_name' = concatenation of all elements of 'conf'
@@ -97,7 +96,7 @@ for m in model.modules():
 model.to(device)
 device = torch.device(device)
 if device.type == 'cuda':
-#if device.type == 'cpu': #Duc
+# if device.type == 'cpu': #Duc
     print(f"=> CUDA memory allocated: {torch.cuda.memory_allocated(device.index)}")
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -877,7 +876,3 @@ print('#########################################################################
 
 simulate_by_filename('vgg16_cifar10_para_train')
 #simulate_by_filename('vgg16_cifar10_pt_scheduled')
-        
-        
-f.close()        
-        
